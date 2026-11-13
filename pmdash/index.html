@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polymarket US · Profit and loss</title>
+<style>
+/* Mostly ElevenLabs (live audit of elevenlabs.io home, /pricing, /developers, Nov 12 2026): eggshell ground, split heads
+   (light headline left, copy right), hairline frame, grids of CELLS divided by hairlines that reach the frame, segmented
+   pill tracks with a white active chip, dotted ledgers, value-over-gray-label stat pairs, monochrome chrome.
+   Part Bloomberg terminal: a status tape on top, dense panels, monospaced figures, panel codes, keyboard shortcuts.
+   Colour only in the data (ElevenLabs' two accents as gain and loss). */
+@font-face { font-family: "Inter"; src: url("/fonts/InterVariable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("/fonts/GeistMono.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  color-scheme: light;
+  --eggshell: #FDFCFC; --cream: #F5F3F1; --putty: #EBE8E4; --g300: #D7D2CC; --g400: #A59F97; --g500: #777169;
+  --g600: #59544F; --g700: #44403B; --ink: #1C1917; --white: #FFFFFF;
+  --pos: #0447FF; --neg: #FF4704;
+  --surface: #FDFCFC; --grid: #EBE8E4; --line: #EBE8E4; --ink2: #59544F; --ink3: #A59F97;
+  --sans: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif; --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ease: 150ms cubic-bezier(.4, 0, .2, 1); --pad: 40px;
+  --ring: 0 0 1px rgba(0,0,0,.4), 0 1px 1px rgba(0,0,0,.04), 0 2px 4px rgba(0,0,0,.04);
+}
+* { box-sizing: border-box; }
+html { background: var(--eggshell); scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { margin: 0; background: var(--eggshell); color: var(--ink); font: 400 15px/1.5 var(--sans); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+/* the tape: one line of live figures, terminal style */
+#tape { background: var(--ink); color: var(--eggshell); font: 400 12px/1 var(--mono); height: 34px; display: flex; align-items: center; gap: 20px; padding: 0 max(var(--pad), calc(50vw - 652px + var(--pad))); overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+#tape::-webkit-scrollbar { display: none; }
+#tape span { color: var(--g400); margin-right: 8px; letter-spacing: .04em; }
+#tape .up { color: #8FA8FF; } #tape .dn { color: #FF8A5C; }
+
+main { max-width: 1304px; margin: 0 auto; padding: 0 var(--pad) 96px; border-left: 1px solid var(--putty); border-right: 1px solid var(--putty); min-height: 100vh; }
+nav { position: sticky; top: 0; z-index: 5; height: 60px; display: flex; align-items: center; gap: 22px; margin: 0 calc(-1 * var(--pad)); padding: 0 var(--pad); background: rgba(253,252,252,.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--putty); }
+.mark { font-size: 16px; font-weight: 500; letter-spacing: -0.015em; margin-right: 10px; white-space: nowrap; }
+.mark i { display: inline-block; width: 3px; height: 13px; background: var(--ink); margin-right: 2px; border-radius: .5px; } .mark i + i { margin-right: 8px; }
+nav a { color: var(--ink); text-decoration: none; font-size: 14px; white-space: nowrap; transition: color var(--ease); } nav a:hover { color: var(--g500); }
+.spacer { flex: 1; }
+.sub { color: var(--g600); font-size: 13px; }
+.muted { color: var(--g500); }
+
+.plate { position: relative; padding: 72px 0 56px; }
+.plate::before { content: ""; position: absolute; top: 0; left: calc(50% - 50vw); width: 100vw; height: 1px; background: var(--putty); }
+.plate::after { content: ""; position: absolute; top: -3px; left: calc(-1 * var(--pad) - 3px); right: calc(-1 * var(--pad) - 3px); height: 5px; pointer-events: none;
+  background: radial-gradient(circle at 2.5px 2.5px, var(--g400) 2px, transparent 2.6px) left center / 5px 5px no-repeat,
+              radial-gradient(circle at 2.5px 2.5px, var(--g400) 2px, transparent 2.6px) right center / 5px 5px no-repeat; }
+.plate.first::before, .plate.first::after { display: none; }
+.plate.flush { padding-bottom: 0; }
+
+/* split head: quiet kicker and light headline left, copy right */
+.head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; align-items: end; margin-bottom: 40px; }
+.kicker { color: var(--g500); font-size: 14px; margin: 0 0 12px; }
+h2 { font-size: 36px; font-weight: 300; letter-spacing: -0.025em; line-height: 1.12; margin: 0; }
+.head p.lede { color: var(--ink); font-size: 16px; line-height: 1.5; margin: 0; max-width: 34rem; }
+h3 { font-size: 14px; font-weight: 400; color: var(--ink); margin: 0 0 14px; display: flex; align-items: baseline; gap: 10px; }
+h3 code { font: 400 11px/1 var(--mono); color: var(--g500); letter-spacing: .06em; background: var(--cream); border-radius: 4px; padding: 3px 5px; }
+.note { color: var(--g500); font-size: 13px; margin: -6px 0 12px; max-width: 34rem; }
+
+.big { font-size: clamp(60px, 9vw, 120px); font-weight: 300; letter-spacing: -0.045em; line-height: .95; margin: 0; }
+#pnlsub { font-size: 17px; line-height: 1.5; margin: 0 0 8px; max-width: 32rem; }
+
+/* controls: pills, and segmented tracks with a white active chip */
+button, select, input[type="date"], input[type="search"] { font: 400 14px/1 var(--sans); color: var(--ink); background: var(--white); border: 0; border-radius: 9999px; height: 36px; padding: 0 14px; box-shadow: var(--ring); transition: transform var(--ease), background var(--ease), color var(--ease); outline-offset: 2px; }
+button { cursor: pointer; } button:hover { background: var(--cream); } button:active { transform: scale(.98); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 1.5px solid var(--ink); }
+button.primary { background: var(--ink); color: var(--eggshell); box-shadow: none; } button.primary:hover { background: var(--g700); }
+button:disabled { opacity: .5; }
+input[type="date"] { font-family: var(--mono); font-size: 13px; }
+.seg { display: inline-flex; background: var(--cream); border-radius: 9999px; padding: 3px; gap: 2px; }
+.seg button { background: transparent; box-shadow: none; height: 30px; padding: 0 13px; color: var(--g600); }
+.seg button:hover { color: var(--ink); background: transparent; }
+.seg button[aria-pressed="true"] { background: var(--white); color: var(--ink); box-shadow: var(--ring); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 36px; }
+.controls label { color: var(--g600); font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+input[type="checkbox"] { accent-color: var(--ink); width: 15px; height: 15px; }
+kbd { font: 400 11px/1 var(--mono); color: var(--g500); background: var(--cream); border-radius: 4px; padding: 3px 5px; }
+
+/* cells: a grid divided by hairlines that runs out to the frame */
+.cells { display: grid; gap: 1px; background: var(--putty); border-top: 1px solid var(--putty); margin: 0 calc(-1 * var(--pad)); }
+.cells > * { background: var(--eggshell); padding: 26px var(--pad) 30px; min-width: 0; }
+.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } .c5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .c21 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.c4 > *, .c5 > * { padding: 22px 24px 24px; } .c4 > :nth-child(4n+1), .c5 > :nth-child(5n+1) { padding-left: var(--pad); }
+.tile { display: flex; flex-direction: column; gap: 4px; }
+.tile .sub:first-child { color: var(--g500); font-size: 13px; order: 2; }
+.tile b { font-size: 24px; font-weight: 300; letter-spacing: -0.02em; line-height: 1.2; order: 1; }
+#check { white-space: nowrap; }
+.t2 { display: block; color: var(--g500); font-size: 12.5px; margin-top: 1px; }
+.nw { white-space: nowrap; }
+@media (max-width: 1240px) { #check { display: none; } nav { gap: 16px; } .c2 { grid-template-columns: minmax(0, 1fr); } .c5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .c5 > * { padding-left: var(--pad) !important; } }
+.c4 > :nth-child(4n), .c5 > :last-child { padding-right: var(--pad); }
+.tile .muted { color: var(--g600); font-size: 12.5px; line-height: 1.45; order: 3; margin-top: 4px; }
+
+.bar-row { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; flex-wrap: wrap; } .bar-row h3 { margin: 0; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--g500); font-size: 10.5px; font-family: var(--mono); }
+.chart { position: relative; }
+.tip { position: absolute; pointer-events: none; background: var(--white); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; box-shadow: var(--ring), 0 8px 24px rgba(0,0,0,.06); white-space: nowrap; display: none; z-index: 2; }
+.tip b { display: block; font: 400 17px/1.3 var(--mono); letter-spacing: -0.02em; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+
+/* ledgers: gray labels, monospaced figures, dotted rules */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: right; padding: 8px 8px; border-bottom: 1px dotted var(--g300); white-space: nowrap; font: 400 12.5px/1.4 var(--mono); }
+th { color: var(--g500); font: 400 12.5px/1.4 var(--sans); position: sticky; top: 0; background: var(--eggshell); border-bottom: 1px solid var(--putty); }
+th[data-k] { cursor: pointer; white-space: nowrap; transition: color var(--ease); } th[data-k]:hover { color: var(--ink); }
+td:first-child, td.l { font: 400 14px/1.4 var(--sans); }
+td:first-child, th:first-child { text-align: left; white-space: normal; min-width: 180px; padding-left: 0; }
+td:last-child, th:last-child { padding-right: 0; }
+td.l, th.l { text-align: left; }
+tr:last-child td { border-bottom: 0; }
+.c2 td:first-child, .c2 th:first-child { min-width: 100px; font-size: 13.5px; }
+.c2 th, .c2 td { padding: 7px 6px; }
+.scroll { overflow: auto; max-height: 620px; }
+.pill { display: inline-block; font: 400 12px/1.3 var(--sans); padding: 2px 9px; border-radius: 9999px; background: var(--cream); color: var(--g700); }
+.barcell { width: 56px; min-width: 56px; padding-left: 0 !important; padding-right: 0 !important; }
+.bartrack { position: relative; height: 8px; }
+.bartrack i { position: absolute; top: 0; height: 8px; border-radius: 2px; }
+.bartrack::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--g300); }
+
+.ok::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); margin-right: 8px; vertical-align: middle; }
+.bad::before { content: "!"; font-weight: 600; margin-right: 6px; }
+#err, #warn { background: var(--cream); border-radius: 16px; padding: 14px 18px; margin: 20px 0 0; font-size: 14px; }
+#err { display: none; }
+#warn b { font-weight: 500; }
+footer { color: var(--g500); font-size: 13px; padding-top: 36px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+@media (max-width: 900px) {
+  :root { --pad: 20px; }
+  nav a { display: none; } .head, .c2, .c21 { grid-template-columns: minmax(0, 1fr); } .head { gap: 16px; }
+  .c4, .c5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .c4 > *, .c5 > * { padding-left: var(--pad) !important; }
+  .barcell { display: none; } h2 { font-size: 28px; } .plate { padding: 48px 0 40px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } html { scroll-behavior: auto; } }
+
+/* colour, the ElevenLabs way: grainy gradient plates and orbs (their Creator plan plate, their product orbs) */
+.stage { position: relative; overflow: hidden; border-radius: 20px; padding: 48px 44px 52px; margin-top: 24px; color: #fff;
+  background: radial-gradient(90% 130% at 0% 0%, #0447FF 0%, rgba(4,71,255,0) 62%), radial-gradient(80% 120% at 100% 100%, #FF4704 0%, rgba(255,71,4,0) 62%),
+              radial-gradient(60% 90% at 78% 0%, #8E5BFF 0%, rgba(142,91,255,0) 60%), radial-gradient(50% 80% at 30% 100%, #FFB199 0%, rgba(255,177,153,0) 60%), #2438B8; }
+.stage.loss { background: radial-gradient(90% 130% at 0% 0%, #FF4704 0%, rgba(255,71,4,0) 62%), radial-gradient(80% 120% at 100% 100%, #0447FF 0%, rgba(4,71,255,0) 62%),
+              radial-gradient(60% 90% at 78% 0%, #FF9A3D 0%, rgba(255,154,61,0) 60%), radial-gradient(50% 80% at 30% 100%, #B13CFF 0%, rgba(177,60,255,0) 60%), #A62B0A; }
+.stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.stage > * { position: relative; z-index: 1; }
+.stage .kicker { color: rgba(255,255,255,.82); } .stage #pnlsub { color: #fff; } .stage .muted { color: rgba(255,255,255,.72); }
+.orb { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 9px; vertical-align: -1px; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.08); }
+.tile.hot { color: #fff; border-radius: 0; background: radial-gradient(120% 160% at 0% 0%, #0447FF 0%, rgba(4,71,255,0) 65%), radial-gradient(120% 160% at 100% 100%, #FF4704 0%, rgba(255,71,4,0) 65%), #6B3FE0; }
+.tile.hot .sub, .tile.hot .muted { color: rgba(255,255,255,.85) !important; }
+</style>
+</head>
+<body>
+<div id="tape" aria-label="Account figures"></div>
+<main>
+  <nav>
+    <div class="mark"><i></i><i></i>Polymarket US</div>
+    <a href="#overview">Overview</a><a href="#time">Through time</a><a href="#cuts">Good and bad</a><a href="#account">Account</a><a href="#positions">Open</a><a href="#markets_plate">Markets</a><a href="#activity">Activity</a>
+    <span class="spacer"></span>
+    <span class="sub" id="check"></span>
+    <button id="refresh" class="primary" type="button">Refresh</button>
+  </nav>
+
+  <div class="plate first flush" id="overview" style="padding-top:8px">
+    <div id="err"></div>
+    <div id="warn" style="display:none"><b>Check before trusting the totals.</b> <span id="warnlist"></span></div>
+    <div class="stage" id="stage"><div class="head" style="margin:0">
+      <div>
+        <p class="kicker" id="ptitle">Profit</p>
+        <p class="big" id="pnl">–</p>
+      </div>
+      <div><p id="pnlsub"></p><p class="sub muted" id="asof" style="margin:0">loading…</p></div>
+    </div></div>
+    <div class="controls">
+      <span class="seg" id="periods"></span>
+      <label><input type="date" id="from" aria-label="From"></label><span class="muted">to</span><label><input type="date" id="to" aria-label="To"></label>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="withopen" checked> Count open positions at today's value</label>
+    </div>
+    <div class="cells c4" id="tiles" style="margin-top:44px"></div>
+  </div>
+
+  <div class="plate flush" id="time">
+    <div class="head">
+      <div><p class="kicker">Through time</p><h2>How the period unfolded</h2></div>
+      <p class="lede">Each market's net result on the day it finished, with fees taken out, plus bonuses on the day they landed.</p>
+    </div>
+    <div class="cells c21">
+      <div><h3><code>CUM</code>Cumulative profit in this period</h3><div class="chart" id="curve"></div></div>
+      <div>
+        <div class="bar-row"><h3><code>BAR</code><span id="btitle">Profit by day</span></h3><span class="spacer"></span><span class="seg" id="grains"></span></div>
+        <div class="sub" id="mlegend" style="margin-bottom:8px"></div>
+        <div class="chart" id="bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="plate flush" id="cuts">
+    <div class="head">
+      <div><p class="kicker">Finished bets in this period</p><h2>Where it is going well,<br>and where it is not</h2></div>
+      <p class="lede">The same bets cut six ways. "Of stake" is profit as a share of the money put into that row; it is not your return on deposits.</p>
+    </div>
+    <div class="cells c2">
+      <section><h3><code>CAT</code>By category</h3><div class="scroll"><table id="g_league"></table></div></section>
+      <section><h3><code>KIND</code>By kind of bet</h3><div class="scroll"><table id="g_kind"></table></div></section>
+      <section><h3><code>PX</code>By price paid per share</h3><p class="note">A bet bought at 30¢ has to win more than 30% of the time to pay. Edge is win rate minus the average price paid, fees included.</p><div class="scroll"><table id="g_price"></table></div></section>
+      <section><h3><code>SIZE</code>By stake size</h3><div class="scroll"><table id="g_stake"></table></div></section>
+      <section><h3><code>HOLD</code>By how long it was held</h3><div class="scroll"><table id="g_hold"></table></div></section>
+      <section><h3><code>DOW</code>By the day of the week it finished</h3><div class="scroll"><table id="g_dow"></table></div></section>
+      <section><h3><code>TOP</code>Best results</h3><div class="scroll"><table id="best"></table></div></section>
+      <section><h3><code>BTM</code>Worst results</h3><div class="scroll"><table id="worst"></table></div></section>
+    </div>
+  </div>
+
+  <div class="plate flush" id="account">
+    <div class="head">
+      <div><p class="kicker">Whatever period is selected above</p><h2>The account, all time</h2></div>
+      <p class="lede">Return is profit, bonuses included, over every dollar you have deposited.</p>
+    </div>
+    <div class="cells c5" id="strip"></div>
+  </div>
+
+  <div class="plate" id="positions">
+    <div class="head"><div><p class="kicker">Still running</p><h2>Open positions</h2></div><p class="lede">Valued at Polymarket's current price. They move until they settle.</p></div>
+    <div class="scroll"><table id="open"></table></div>
+  </div>
+
+  <div class="plate" id="markets_plate">
+    <div class="head">
+      <div><p class="kicker">Every market in this period</p><h2>Markets</h2></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <input id="q" type="search" placeholder="Search" aria-label="Search markets">
+        <select id="status" aria-label="Result"><option value="">All results</option><option>open</option><option>won</option><option>lost</option><option value="closed">sold</option></select>
+      </div>
+    </div>
+    <div class="scroll"><table id="markets"></table></div>
+    <div class="sub" id="mcount" style="margin-top:14px"></div>
+  </div>
+
+  <div class="plate" id="activity">
+    <div class="head"><div><p class="kicker">Latest first</p><h2>Recent activity</h2></div><p class="lede"></p></div>
+    <div class="scroll"><table id="recent"></table></div>
+    <footer><span>Read-only. Nothing here places or suggests a bet.</span><span class="spacer"></span><span><kbd>1</kbd>–<kbd>5</kbd> period</span><span><kbd>O</kbd> open positions</span><span><kbd>/</kbd> search</span><span><kbd>R</kbd> refresh</span></footer>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'text') n.textContent = v; else n.setAttribute(k, v); } kids.forEach(k => n.append(k)); return n; };
+const NS = 'http://www.w3.org/2000/svg';
+const sv = (tag, attrs = {}, text) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; return n; };
+const money = (v, sign = false) => v == null ? '–' : (v < -0.004 ? '−\u2060' : (sign && v > 0.004 ? '+\u2060' : '')) + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const short = v => (v < 0 ? '−' : '') + '$' + (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(v).toFixed(0));
+const pct = (v, d = 1) => v == null || !isFinite(v) ? '–' : (v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(d) + '%';
+const D = s => new Date(s + 'T12:00:00');
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const day = s => s ? (s.length === 10 ? D(s) : new Date(s)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+const dayTime = s => s ? new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+const sum = (rows, f) => rows.reduce((a, r) => a + f(r), 0);
+let DATA = null, PERIOD = '7 days', GRAIN = 'Day', SORT = { k: 'last', dir: -1 }, VIEW = null;
+
+async function load(force) {
+  $('refresh').disabled = true; $('asof').textContent = 'loading…';
+  try {
+    const r = await fetch('/api/data' + (force ? '?refresh=1' : '')); const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    if (!d.bonus_list || !d.deposit_list || !d.today_local || !d.markets) throw new Error('the server is running an older copy of the code. Stop it and start run.sh again.');
+    DATA = d; $('err').style.display = 'none'; setPeriod(PERIOD, true);
+  } catch (e) { $('err').style.display = 'block'; $('err').textContent = 'Could not load the account: ' + e.message; $('asof').textContent = ''; }
+  $('refresh').disabled = false;
+}
+
+// ---- period: every number below the controls is recomputed for [from, to], in local calendar days
+function setPeriod(name, keepCustom) {
+  PERIOD = name; const today = D(DATA.today_local), first = DATA.summary.first ? new Date(DATA.summary.first) : today;
+  const back = n => { const d = new Date(today); d.setDate(d.getDate() - (n - 1)); return iso(d); };
+  if (name !== 'Custom') {
+    $('to').value = DATA.today_local;
+    $('from').value = name === 'Today' ? DATA.today_local : name === '7 days' ? back(7) : name === '30 days' ? back(30) : name === '90 days' ? back(90) : iso(first);
+  }
+  $('periods').replaceChildren(...['Today', '7 days', '30 days', '90 days', 'All time'].map(r => { const b = el('button', { type: 'button', 'aria-pressed': String(r === PERIOD), text: r }); b.onclick = () => setPeriod(r); return b; }));
+  render();
+}
+
+function compute() {
+  const from = $('from').value, to = $('to').value, withOpen = $('withopen').checked && to >= DATA.today_local;
+  const fin = DATA.markets.filter(m => m.status !== 'open' && m.day && m.day >= from && m.day <= to);
+  const open = withOpen ? DATA.markets.filter(m => m.status === 'open') : [];
+  const bonus = DATA.bonus_list.filter(b => b.day >= from && b.day <= to);
+  const betting = sum(fin, m => m.pnl), openPnl = sum(open, m => m.pnl), bonusSum = sum(bonus, b => b.amount);
+  const byDay = {}; fin.forEach(m => byDay[m.day] = (byDay[m.day] || 0) + m.pnl); bonus.forEach(b => byDay[b.day] = (byDay[b.day] || 0) + b.amount);
+  const days = []; for (let d = D(from); iso(d) <= to; d.setDate(d.getDate() + 1)) days.push({ date: iso(d), pnl: byDay[iso(d)] || 0, n: fin.filter(m => m.day === iso(d)).length });
+  let run = 0; days.forEach(d => { run += d.pnl; d.cum = run; });
+  const deposited = sum(DATA.deposit_list.filter(x => x.day <= to), x => x.amount);      // every completed deposit up to the end of the period
+  return { from, to, withOpen, fin, open, bonus, betting, openPnl, bonusSum, profit: betting + bonusSum + openPnl, days, deposited,
+           fees: sum(fin, m => m.fees) + sum(open, m => m.fees), staked: sum(fin, m => m.staked) + sum(open, m => m.staked), wins: fin.filter(m => m.pnl > 0.004).length };
+}
+
+function render() {
+  const s = DATA.summary, c = DATA.check, v = VIEW = compute();
+  $('asof').textContent = 'as of ' + new Date(DATA.asof).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const ok = Math.abs(c.diff) < 0.01; $('check').className = 'sub ' + (ok ? 'ok' : 'bad');
+  $('check').textContent = ok ? 'Matches reported cash to the cent' : 'off from reported cash by ' + money(c.diff, true);
+  $('warn').style.display = DATA.warnings.length ? 'block' : 'none'; $('warnlist').textContent = DATA.warnings.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('. ') + '.';
+  $('ptitle').textContent = 'Profit, ' + (v.from === v.to ? day(v.from) : day(v.from) + ' to ' + day(v.to)) + ', bonuses included';
+  $('pnl').textContent = money(v.profit, true); $('stage').className = 'stage ' + (v.profit >= 0 ? 'gain' : 'loss');
+  $('pnlsub').textContent = money(v.betting, true) + ' on ' + v.fin.length + ' finished markets after fees, ' + money(v.bonusSum, true) + ' in bonuses' + (v.withOpen ? ', ' + money(v.openPnl, true) + ' on ' + v.open.length + ' open positions' : ', open positions not counted');
+  const best = v.fin.reduce((a, m) => !a || m.pnl > a.pnl ? m : a, null), worst = v.fin.reduce((a, m) => !a || m.pnl < a.pnl ? m : a, null);
+  const gross = v.betting + sum(v.fin, m => m.fees);
+  const tiles = [
+    ['Finished markets', v.fin.length ? v.wins + ' up, ' + (v.fin.length - v.wins) + ' down' : '0', v.fin.length ? pct(v.wins / v.fin.length) + ' made money' : 'none finished in this period'],
+    ['Staked', money(v.staked), v.fin.length ? 'average ' + money(sum(v.fin, m => m.staked) / v.fin.length) + ' a market' : ''],
+    ['Fees paid', money(v.fees), v.staked ? pct(v.fees / v.staked) + ' of stakes' + (gross > 0 ? '; ' + pct(sum(v.fin, m => m.fees) / gross, 0) + ' of winnings before fees' : '') : ''],
+    ['Return on deposits, all time', pct(s.roi_deposits), money(s.total_pnl, true) + ' profit, bonuses included, on ' + money(s.deposits) + ' deposited' + (v.deposited && !(v.from <= iso(new Date(s.first)) && v.to >= DATA.today_local) ? '; this period alone ' + pct(v.profit / v.deposited) : '')],
+    ['Bonuses', money(v.bonusSum, true), v.bonus.length + (v.bonus.length === 1 ? ' credit' : ' credits') + ' in this period, counted as profit'],
+    ['Best market', best ? money(best.pnl, true) : '–', best ? best.title : ''],
+    ['Worst market', worst ? money(worst.pnl, true) : '–', worst ? worst.title : ''],
+    ['Best day', v.days.length ? money(Math.max(...v.days.map(d => d.pnl)), true) : '–', v.days.length ? 'worst day ' + money(Math.min(...v.days.map(d => d.pnl)), true) : ''],
+  ];
+  $('tiles').replaceChildren(...tiles.map(([k, val, n]) => el('div', { class: 'tile' }, el('span', { class: 'sub', text: k }), el('b', { text: val }), el('span', { class: 'sub muted', text: n }))));
+  // all-time strip: peak and drawdown come from the all-time daily curve
+  let peak = 0, peakDay = null; DATA.curve.forEach(p => { if (p.cum > peak) { peak = p.cum; peakDay = p.date; } });
+  const now = DATA.curve.length ? DATA.curve[DATA.curve.length - 1].cum : 0;
+  const strip = [
+    ['Profit, all time', money(s.total_pnl, true), money(s.closed_pnl, true) + ' finished, ' + money(s.open_pnl, true) + ' open, ' + money(s.bonuses, true) + ' bonuses'],
+    ['Return on deposits', pct(s.roi_deposits), money(s.total_pnl, true) + ' on ' + money(s.deposits) + ' deposited'],
+    ['Account value', money(s.account_value), 'cash ' + money(s.cash) + ' + positions ' + money(s.open_value) + (DATA.bonus_hold ? '; ' + money(DATA.bonus_hold) + ' of it is bonus on hold' : '')],
+    ['Deposits and withdrawals', money(s.deposits) + ' in', money(s.withdrawals) + ' out' + (s.pending_deposits ? '; ' + money(s.pending_deposits) + ' more pending' : '')],
+    ['Peak and drawdown', money(peak, true), 'finished-market profit peaked ' + day(peakDay) + '; now ' + money(now, true) + ', ' + money(now - peak) + ' off the peak'],
+  ];
+  $('strip').replaceChildren(...strip.map(([k, val, n], i) => el('div', { class: i === 1 ? 'tile hot' : 'tile' }, el('span', { class: 'sub', text: k }), el('b', { text: val }), el('span', { class: 'sub muted', text: n }))));
+  tape(v); curve(v); bars(v); groups(v); extremes(v); openTable(); marketTable(); recentTable();
+}
+
+function tape(v) {
+  const s = DATA.summary, sg = x => el('b', { class: x >= 0 ? 'up' : 'dn', text: (x >= 0 ? '▲ ' : '▼ ') + money(Math.abs(x)) }), pl = x => el('b', { text: x });
+  const items = [['ALL TIME', sg(s.total_pnl)], ['7D', sg(DATA.last7.pnl)], ['WEEK', sg(DATA.week.pnl)], ['TODAY', sg(DATA.today.pnl)], ['RETURN', pl(pct(s.roi_deposits))],
+    ['ACCOUNT', pl(money(s.account_value))], ['CASH', pl(money(s.cash))], ['OPEN ' + DATA.open.length, sg(s.unrealized)], ['FEES', pl(money(s.fees))], ['OFF PEAK', pl(money((DATA.curve.length ? DATA.curve[DATA.curve.length - 1].cum : 0) - Math.max(0, ...DATA.curve.map(p => p.cum))))]];
+  $('tape').replaceChildren(...items.map(([k, n]) => { const d = el('div'); n.style.fontWeight = 400; d.append(el('span', { text: k }), n); return d; }));
+}
+function niceTicks(lo, hi, n = 4) {
+  const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(m => m >= step0);
+  const out = []; for (let x = Math.ceil(lo / step) * step; x <= hi + 1e-9; x += step) out.push(Math.round(x * 100) / 100); return out;
+}
+function placeTip(tip, svg, cx, W) { tip.style.display = 'block'; const box = svg.getBoundingClientRect(); tip.style.left = Math.min(Math.max(cx / W * box.width - tip.offsetWidth / 2, 0), box.width - tip.offsetWidth) + 'px'; tip.style.top = '0px'; }
+
+function curve(v) {
+  const host = $('curve'); host.replaceChildren();
+  const pts = [{ date: null, cum: 0, pnl: 0, n: 0 }].concat(v.days).map((p, i) => ({ ...p, i }));
+  const W = 760, H = 300, m = { l: 52, r: 16, t: 26, b: 26 }, N = pts.length - 1 || 1;
+  const vals = pts.map(p => p.cum), lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.08 || 1;
+  const x = i => m.l + i / N * (W - m.l - m.r), y = val => m.t + (hi + pad - val) / (hi - lo + 2 * pad) * (H - m.t - m.b);
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Cumulative profit across the selected period' });
+  niceTicks(lo - pad, hi + pad).forEach(t => { svg.append(sv('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? 'var(--ink3)' : 'var(--grid)', 'stroke-width': 1 })); svg.append(sv('text', { x: m.l - 8, y: y(t) + 4, 'text-anchor': 'end' }, short(t))); });
+  const nT = Math.min(5, v.days.length); for (let k = 0; k < nT; k++) { const i = nT === 1 ? 1 : 1 + Math.round(k / (nT - 1) * (v.days.length - 1)); svg.append(sv('text', { x: x(i), y: H - 6, 'text-anchor': k === 0 ? 'start' : k === nT - 1 ? 'end' : 'middle' }, D(pts[i].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))); }
+  const defs = sv('defs'), lg = sv('linearGradient', { id: 'area', x1: 0, x2: 0, y1: 0, y2: 1 }); lg.append(sv('stop', { offset: 0, 'stop-color': '#0447FF', 'stop-opacity': .28 }), sv('stop', { offset: 1, 'stop-color': '#FF4704', 'stop-opacity': .28 })); defs.append(lg); svg.append(defs);
+  svg.append(sv('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.cum).toFixed(1)).join(' ') + ` L${x(N)} ${y(0)} L${x(0)} ${y(0)} Z`, fill: 'url(#area)' }));
+  svg.append(sv('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.cum).toFixed(1)).join(' '), fill: 'none', stroke: 'var(--pos)', 'stroke-width': 1.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  const last = pts[pts.length - 1];
+  svg.append(sv('circle', { cx: x(last.i), cy: y(last.cum), r: 4, fill: 'var(--pos)', stroke: 'var(--surface)', 'stroke-width': 2 }));
+  svg.append(sv('text', { x: W - m.r, y: 14, 'text-anchor': 'end', style: 'fill:var(--ink);font-size:12px;font-weight:400' }, 'ends at ' + money(last.cum, true) + (v.withOpen ? ' before open positions' : '')));
+  const hair = sv('line', { y1: m.t, y2: H - m.b, stroke: 'var(--ink3)', 'stroke-width': 1, visibility: 'hidden' }), mark = sv('circle', { r: 4, fill: 'var(--pos)', stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden' });
+  const hit = sv('rect', { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: 'transparent', tabindex: 0 });
+  svg.append(hair, mark, hit); host.append(svg);
+  const tip = el('div', { class: 'tip' }); host.append(tip);
+  const show = px => {
+    const box = svg.getBoundingClientRect(), sx = (px - box.left) / box.width * W;
+    const p = pts.slice(1).reduce((a, b) => Math.abs(x(b.i) - sx) < Math.abs(x(a.i) - sx) ? b : a, pts[Math.min(1, pts.length - 1)]);
+    if (!p.date) return;
+    hair.setAttribute('x1', x(p.i)); hair.setAttribute('x2', x(p.i)); hair.setAttribute('visibility', 'visible');
+    mark.setAttribute('cx', x(p.i)); mark.setAttribute('cy', y(p.cum)); mark.setAttribute('visibility', 'visible');
+    tip.replaceChildren(el('b', { text: money(p.cum, true) }), el('span', { class: 'sub', text: day(p.date) + ' · ' + money(p.pnl, true) + ' that day, ' + p.n + (p.n === 1 ? ' market' : ' markets') }));
+    placeTip(tip, svg, x(p.i), W);
+  };
+  const hide = () => { tip.style.display = 'none'; hair.setAttribute('visibility', 'hidden'); mark.setAttribute('visibility', 'hidden'); };
+  hit.addEventListener('pointermove', e => show(e.clientX)); hit.addEventListener('pointerleave', hide);
+  hit.addEventListener('focus', () => show(svg.getBoundingClientRect().right)); hit.addEventListener('blur', hide);
+}
+
+function bars(v) {
+  const host = $('bars'); host.replaceChildren();
+  const auto = v.days.length <= 31 ? 'Day' : v.days.length <= 200 ? 'Week' : 'Month';
+  if (!['Day', 'Week', 'Month'].includes(GRAIN) || (GRAIN === 'Day' && v.days.length > 62)) GRAIN = auto;
+  $('grains').replaceChildren(...['Day', 'Week', 'Month'].filter(g => g !== 'Day' || v.days.length <= 62).map(r => { const b = el('button', { type: 'button', 'aria-pressed': String(r === GRAIN), text: r }); b.onclick = () => { GRAIN = r; bars(VIEW); }; return b; }));
+  $('btitle').textContent = 'Profit by ' + GRAIN.toLowerCase();
+  const key = d => { if (GRAIN === 'Day') return d; const t = D(d); if (GRAIN === 'Month') return d.slice(0, 7) + '-01'; t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return iso(t); };
+  const map = new Map(); v.days.forEach(d => map.set(key(d.date), (map.get(key(d.date)) || 0) + d.pnl));
+  const rows = [...map].map(([k, pnl]) => ({ k, pnl, d: D(k) }));
+  if (!rows.length) return;
+  $('mlegend').replaceChildren(el('span', { class: 'dot', style: 'background:var(--pos)' }), 'gain  ', el('span', { class: 'dot', style: 'background:var(--neg);margin-left:10px' }), 'loss');
+  const W = 360, H = 300, m = { l: 46, r: 8, t: 18, b: 26 };
+  const vals = rows.map(r => r.pnl).concat([0]), lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.1 || 1;
+  const y = t => m.t + (hi + pad - t) / (hi - lo + 2 * pad) * (H - m.t - m.b), band = (W - m.l - m.r) / rows.length, bw = Math.max(2, Math.min(34, band - 2));
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Profit by ' + GRAIN.toLowerCase() + ' in the selected period' });
+  niceTicks(lo - pad, hi + pad, 4).forEach(t => { svg.append(sv('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? 'var(--ink3)' : 'var(--grid)', 'stroke-width': 1 })); svg.append(sv('text', { x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end' }, short(t))); });
+  const tip = el('div', { class: 'tip' });
+  const best = rows.reduce((a, b) => b.pnl > a.pnl ? b : a), worst = rows.reduce((a, b) => b.pnl < a.pnl ? b : a);
+  const every = Math.max(1, Math.ceil(rows.length / 6));
+  rows.forEach((r, i) => {
+    const cx = m.l + band * (i + 0.5), top = Math.min(y(r.pnl), y(0)), h = Math.abs(y(r.pnl) - y(0)), rad = Math.min(4, h, bw / 2), up = r.pnl >= 0;
+    const x0 = cx - bw / 2, x1 = cx + bw / 2, yb = y(0), ye = y(r.pnl), s = up ? -1 : 1;
+    const bar = sv('path', { d: `M${x0} ${yb} L${x0} ${ye - s * rad} Q${x0} ${ye} ${x0 + rad} ${ye} L${x1 - rad} ${ye} Q${x1} ${ye} ${x1} ${ye - s * rad} L${x1} ${yb} Z`, fill: up ? 'var(--pos)' : 'var(--neg)' });
+    if (h >= 0.5) svg.append(bar);
+    if (i % every === 0) svg.append(sv('text', { x: cx, y: H - 6, 'text-anchor': 'middle' }, r.d.toLocaleDateString('en-US', GRAIN === 'Month' ? { month: 'short' } : { month: 'numeric', day: 'numeric' })));
+    if ((r === best || r === worst) && h >= 0.5) svg.append(sv('text', { x: Math.min(Math.max(cx, m.l + 16), W - m.r - 16), y: up ? top - 5 : top + h + 13, 'text-anchor': 'middle', style: 'fill:var(--ink);font-weight:500' }, short(r.pnl)));
+    const hit = sv('rect', { x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b, fill: 'transparent', tabindex: 0 });
+    const when = GRAIN === 'Day' ? r.d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : GRAIN === 'Week' ? 'Week of ' + day(r.k) : r.d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const on = () => { bar.setAttribute('opacity', .75); tip.replaceChildren(el('b', { text: money(r.pnl, true) }), el('span', { class: 'sub', text: when })); placeTip(tip, svg, cx, W); };
+    const off = () => { bar.setAttribute('opacity', 1); tip.style.display = 'none'; };
+    hit.addEventListener('pointermove', on); hit.addEventListener('pointerleave', off); hit.addEventListener('focus', on); hit.addEventListener('blur', off);
+    svg.append(hit);
+  });
+  host.append(svg, tip);
+}
+
+function table(id, cols, rows, onSort) {
+  const t = $(id); t.replaceChildren();
+  const head = el('tr'); cols.forEach(c => { const th = el('th', { text: c.h, class: (c.left ? 'l ' : '') + (c.cls || '') }); if (onSort && c.k) { th.dataset.k = c.k; th.onclick = () => onSort(c.k); if (SORT.k === c.k) th.textContent += SORT.dir > 0 ? ' ↑' : ' ↓'; } head.append(th); });
+  t.append(el('thead', {}, head));
+  const body = el('tbody');
+  rows.forEach(r => { const tr = el('tr'); cols.forEach(c => { const td = el('td', { class: (c.left ? 'l ' : '') + (c.cls || '') }); const val = c.f(r); if (val instanceof Node) td.append(val); else td.textContent = val; tr.append(td); }); body.append(tr); });
+  if (!rows.length) body.append(el('tr', {}, el('td', { text: 'Nothing in this period.', class: 'muted', colspan: String(cols.length) })));
+  t.append(body);
+}
+const title = r => { const w = el('span'); w.append(el('span', { text: r.title })); const bits = [r.outcome, r.side].filter((x, i, a) => x && a.indexOf(x) === i); if (bits.length && !r.title.startsWith('Parlay')) w.append(el('span', { class: 't2', text: bits.join(' · ') })); return w; };
+const ORBS = { Crypto: ['#FFC46B', '#FF4704'], NBA: ['#7FB0FF', '#0447FF'], NFL: ['#8FE3B0', '#0B8F5A'], 'College football': ['#FFD98A', '#C77A00'], Parlays: ['#E0A8FF', '#7A2BE0'], MLB: ['#FF9FB5', '#D0144A'], NHL: ['#A8F0F5', '#0A8FA3'], Tennis: ['#E4F59A', '#7BA800'], Soccer: ['#B8F0C8', '#12A150'], Bonuses: ['#FFE08A', '#FF8A00'] };
+const cat = name => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; const [a, b] = ORBS[name] || [`hsl(${h} 85% 78%)`, `hsl(${(h + 40) % 360} 80% 48%)`]; const w = el('span', { class: 'nw' }), o = el('span', { class: 'orb' }); o.style.background = `radial-gradient(circle at 32% 28%, ${a}, ${b} 78%)`; w.append(o, name); return w; };
+const pill = s => el('span', { class: 'pill', text: s === 'closed' ? 'sold' : s });
+
+// ---- where it is going well and badly: finished markets in the period, grouped several ways
+function group(id, label, keyOf, order, extra) {
+  const g = new Map();
+  VIEW.fin.forEach(m => { const k = keyOf(m); if (k == null) return; if (!g.has(k)) g.set(k, { k, n: 0, wins: 0, staked: 0, fees: 0, pnl: 0, px: 0 }); const r = g.get(k); r.n++; r.wins += m.pnl > 0.004; r.staked += m.staked; r.fees += m.fees; r.pnl += m.pnl; r.px += (m.price || 0) * m.staked; });
+  let rows = [...g.values()]; rows.sort(order ? (a, b) => order.indexOf(a.k) - order.indexOf(b.k) : (a, b) => b.pnl - a.pnl);
+  const big = Math.max(1, ...rows.map(r => Math.abs(r.pnl)));
+  const bar = r => { const t = el('div', { class: 'bartrack', title: money(r.pnl, true) }), i = el('i'), w = Math.abs(r.pnl) / big * 50; i.style.width = w + '%'; i.style.left = (r.pnl >= 0 ? 50 : 50 - w) + '%'; i.style.background = r.pnl >= 0 ? 'var(--pos)' : 'var(--neg)'; t.append(i); return t; };
+  const cols = [{ h: label, f: r => id === 'g_league' ? cat(r.k) : r.k }, { h: 'Bets', f: r => r.n }, { h: 'Won', f: r => pct(r.wins / r.n, 0) }];
+  if (extra) cols.push(...extra);
+  cols.push({ h: 'Staked', f: r => money(r.staked) }); if (!extra) cols.push({ h: 'Fees', f: r => pct(r.staked ? r.fees / r.staked : null) });
+  cols.push({ h: 'Profit', f: r => money(r.pnl, true) }); if (!extra) cols.push({ h: '', f: bar, cls: 'barcell' });
+  cols.push( { h: 'Of stake', f: r => pct(r.staked ? r.pnl / r.staked : null) });
+  table(id, cols, rows);
+}
+const bucket = (x, edges, names) => { for (let i = 0; i < edges.length; i++) if (x < edges[i]) return names[i]; return names[names.length - 1]; };
+function groups() {
+  group('g_league', 'Category', m => m.league);
+  group('g_kind', 'Kind of bet', m => m.kind);
+  const pn = ['under 20¢', '20–40¢', '40–60¢', '60–80¢', '80¢ and up'];
+  group('g_price', 'Price paid', m => m.price == null || m.league === 'Parlays' ? (m.league === 'Parlays' ? 'parlays' : null) : bucket(m.price, [0.2, 0.4, 0.6, 0.8], pn), pn.concat(['parlays']),
+    [{ h: 'Avg paid', f: r => r.staked ? Math.round(r.px / r.staked * 100) + '¢' : '–' }, { h: 'Edge', f: r => r.staked ? ((r.wins / r.n - r.px / r.staked) >= 0 ? '+' : '−') + Math.abs((r.wins / r.n - r.px / r.staked) * 100).toFixed(0) + ' pts' : '–' }]);
+  const sn = ['under $10', '$10–25', '$25–50', '$50–100', '$100–250', '$250 and up'];
+  group('g_stake', 'Stake', m => bucket(m.staked, [10, 25, 50, 100, 250], sn), sn);
+  const hn = ['under 15 min', '15 min – 1 hr', '1–6 hrs', '6–24 hrs', '1–3 days', 'over 3 days'];
+  group('g_hold', 'Held for', m => m.hold_hours == null ? null : bucket(m.hold_hours, [0.25, 1, 6, 24, 72], hn), hn);
+  const dn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  group('g_dow', 'Finished on', m => dn[(D(m.day).getDay() + 6) % 7], dn);
+}
+function extremes(v) {
+  const cols = [{ h: 'Market', f: title }, { h: 'Category', f: r => cat(r.league), left: true }, { h: 'Staked', f: r => money(r.staked) }, { h: 'Profit', f: r => money(r.pnl, true) }, { h: 'Finished', f: r => D(r.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }];
+  const s = [...v.fin].sort((a, b) => b.pnl - a.pnl);
+  table('best', cols, s.filter(m => m.pnl > 0).slice(0, 6)); table('worst', cols, s.filter(m => m.pnl < 0).reverse().slice(0, 6));
+}
+
+function openTable() {
+  table('open', [
+    { h: 'Market', f: title }, { h: 'Category', f: r => cat(r.league), left: true }, { h: 'Shares', f: r => r.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) }, { h: 'Avg price', f: r => r.avg ? r.avg.toFixed(2) : '–' },
+    { h: 'Cost', f: r => money(r.cost) }, { h: 'Value now', f: r => money(r.value) }, { h: 'Up or down', f: r => money(r.unrealized, true) },
+  ], DATA.open);
+}
+function marketTable() {
+  const q = $('q').value.trim().toLowerCase(), st = $('status').value;
+  let rows = VIEW.fin.concat(VIEW.open).filter(r => (!st || r.status === st) && (!q || (r.title + ' ' + r.outcome + ' ' + r.league + ' ' + r.kind).toLowerCase().includes(q)));
+  rows.sort((a, b) => { const x = a[SORT.k], y = b[SORT.k]; return (x == null) - (y == null) || (x > y ? 1 : x < y ? -1 : 0) * SORT.dir; });
+  $('mcount').textContent = rows.length + ' markets, ' + money(sum(rows, r => r.pnl), true) + ' in total';
+  table('markets', [
+    { h: 'Market', k: 'title', f: title }, { h: 'Category', k: 'league', f: r => cat(r.league), left: true }, { h: 'Kind', k: 'kind', f: r => r.kind, left: true }, { h: 'Result', k: 'status', f: r => pill(r.status), left: true },
+    { h: 'Price paid', k: 'price', f: r => r.price == null ? '–' : Math.round(r.price * 100) + '¢' }, { h: 'Staked', k: 'staked', f: r => money(r.staked) }, { h: 'Returned', k: 'returned', f: r => money(r.returned) }, { h: 'Fees', k: 'fees', f: r => money(r.fees) },
+    { h: 'Profit', k: 'pnl', f: r => money(r.pnl, true) }, { h: 'Of stake', k: 'roi', f: r => pct(r.roi) }, { h: 'Last activity', k: 'last', f: r => day(r.last) },
+  ], rows, k => { SORT = { k, dir: SORT.k === k ? -SORT.dir : (['title', 'league', 'kind', 'status'].includes(k) ? 1 : -1) }; marketTable(); });
+}
+function recentTable() {
+  table('recent', [
+    { h: 'What', f: r => { const w = el('span'); w.append(pill(r.kind), ' ', el('span', { text: r.text || '' })); return w; } },
+    { h: 'Shares', f: r => r.qty ? r.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '' }, { h: 'Price', f: r => r.price ? r.price.toFixed(2) : '' },
+    { h: 'Cash', f: r => money(r.amount, true) }, { h: 'Profit', f: r => r.pnl == null ? '' : money(r.pnl, true) }, { h: 'When', f: r => dayTime(r.time) },
+  ], DATA.recent);
+}
+
+$('refresh').onclick = () => load(true); $('q').oninput = () => DATA && marketTable(); $('status').onchange = () => DATA && marketTable();
+$('from').onchange = $('to').onchange = () => { if (DATA && $('from').value && $('to').value && $('from').value <= $('to').value) setPeriod('Custom'); };
+$('withopen').onchange = () => DATA && render();
+document.addEventListener('keydown', e => {
+  if (!DATA || e.metaKey || e.ctrlKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  const P = ['Today', '7 days', '30 days', '90 days', 'All time'];
+  if (e.key >= '1' && e.key <= '5') setPeriod(P[+e.key - 1]);
+  else if (e.key === '/') { e.preventDefault(); $('q').focus(); }
+  else if (e.key.toLowerCase() === 'r') load(true);
+  else if (e.key.toLowerCase() === 'o') { $('withopen').checked = !$('withopen').checked; render(); }
+});
+load(false);
+</script>
+</body>
+</html>
