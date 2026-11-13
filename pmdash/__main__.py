@@ -16,6 +16,7 @@ from .client import ApiError, Client
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = int(os.environ.get("PMDASH_PORT", "8765"))
+DEMO = "--demo" in sys.argv     # python -m pmdash --demo: made-up data, no account needed
 MAX_AGE = 60                    # seconds a fetch is reused before asking the API again
 _lock = threading.Lock()
 _cache = {"t": 0.0, "data": None}
@@ -39,6 +40,10 @@ def load(force=False):
     from .client import Client                                  # the possibly reloaded class
     with _lock:
         if not force and _cache["data"] is not None and time.time() - _cache["t"] < MAX_AGE:
+            return _cache["data"]
+        if DEMO:                                                # invented data: no credentials, no network, no files
+            from . import demo
+            _cache.update(t=time.time(), data=dict(pnl.build(demo.raw()), demo=True))
             return _cache["data"]
         c = Client()
         raw = {"balances": c.balances(), "positions": c.positions(), "activities": c.activities()}
@@ -88,7 +93,7 @@ def main():
             print("  -", w)
         return
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"P&L dashboard: http://127.0.0.1:{PORT}   (Ctrl-C to stop)")
+    print(f"P&L dashboard{' (demo data)' if DEMO else ''}: http://127.0.0.1:{PORT}   (Ctrl-C to stop)")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

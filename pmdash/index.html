@@ -299,7 +299,7 @@ function render() {
   const s = DATA.summary, c = DATA.check, v = VIEW = compute();
   $('asof').textContent = 'as of ' + new Date(DATA.asof).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const ok = Math.abs(c.diff) < 0.01; $('check').className = 'sub ' + (ok ? 'ok' : 'bad');
-  $('check').textContent = ok ? 'Matches reported cash to the cent' : 'off from reported cash by ' + money(c.diff, true);
+  $('check').textContent = DATA.demo ? 'Demo data, not a real account' : ok ? 'Matches reported cash to the cent' : 'off from reported cash by ' + money(c.diff, true);
   $('warn').style.display = DATA.warnings.length ? 'block' : 'none'; $('warnlist').textContent = DATA.warnings.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('. ') + '.';
   $('ptitle').textContent = 'Profit, ' + (v.from === v.to ? day(v.from) : day(v.from) + ' to ' + day(v.to)) + ', bonuses included';
   $('pnl').textContent = money(v.profit, true); $('stage').className = 'stage ' + (v.profit >= 0 ? 'gain' : 'loss');
